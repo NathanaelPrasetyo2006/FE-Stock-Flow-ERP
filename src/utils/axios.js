@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:5000/api',
+  baseURL: 'https://api-stockflow-production.up.railway.app:443/api',
   headers: {
     'Content-Type': 'application/json'
   }
@@ -43,7 +43,7 @@ api.interceptors.response.use(
         }
 
         // Request access token baru menggunakan refresh token
-        const response = await axios.put('http://127.0.0.1:5000/api/auth/refresh', {
+        const response = await axios.put('https://api-stockflow-production.up.railway.app:443/api/auth/refresh', {
           refresh_token: refreshToken
         })
 

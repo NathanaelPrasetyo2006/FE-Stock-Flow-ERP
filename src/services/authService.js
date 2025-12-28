@@ -1,7 +1,7 @@
 import axios from 'axios'
 import api from '@/utils/axios'
 
-const API_URL = 'http://127.0.0.1:5000/api/auth'
+const API_URL = 'https://api-stockflow-production.up.railway.app:443/api/auth'
 
 export const authService = {
   // Login
