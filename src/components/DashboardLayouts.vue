@@ -40,7 +40,20 @@
                 <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform scale-100" leave-to-class="transform opacity-0 scale-95">
                   <MenuItems class="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-gray-800 py-1 outline-1 -outline-offset-1 outline-white/10">
                     <MenuItem v-for="item in userNavigation" :key="item.name" v-slot="{ active }">
-                      <a :href="item.href" :class="[active ? 'bg-white/5 outline-hidden' : '', 'block px-4 py-2 text-sm text-gray-300']">{{ item.name }}</a>
+                      <a
+                        v-if="item.href"
+                        :href="item.href"
+                        :class="[active ? 'bg-white/5 outline-hidden' : '', 'block px-4 py-2 text-sm text-gray-300 cursor-pointer']"
+                      >
+                        {{ item.name }}
+                      </a>
+                      <button
+                        v-else
+                        @click="item.action"
+                        :class="[active ? 'bg-white/5 outline-hidden' : '', 'block w-full text-left px-4 py-2 text-sm text-gray-300 cursor-pointer hover:bg-white/5']"
+                      >
+                        {{ item.name }}
+                      </button>
                     </MenuItem>
                   </MenuItems>
                 </transition>
@@ -66,7 +79,7 @@
         <div class="border-t border-white/10 pt-4 pb-3">
           <div class="flex items-center px-5">
             <div class="shrink-0">
-              <img class="size-10 rounded-full outline -outline-offset-1 outline-white/10" :src="user.imageUrl" alt="" />
+              <img class="size-10 rounded-full" :src="user.imageUrl" alt="" />
             </div>
             <div class="ml-3">
               <div class="text-base/5 font-medium text-white">{{ user.name }}</div>
@@ -79,7 +92,16 @@
             </button>
           </div>
           <div class="mt-3 space-y-1 px-2">
-            <DisclosureButton v-for="item in userNavigation" :key="item.name" as="a" :href="item.href" class="block rounded-md px-3 py-2 text-base font-medium text-gray-400 hover:bg-white/5 hover:text-white">{{ item.name }}</DisclosureButton>
+            <DisclosureButton
+              v-for="item in userNavigation"
+              :key="item.name"
+              :as="item.href ? 'a' : 'button'"
+              :href="item.href || undefined"
+              @click="item.action ? item.action() : null"
+              class="block w-full text-left rounded-md px-3 py-2 text-base font-medium text-gray-400 hover:bg-white/5 hover:text-white"
+            >
+              {{ item.name }}
+            </DisclosureButton>
           </div>
         </div>
       </DisclosurePanel>
@@ -99,15 +121,23 @@
 </template>
 
 <script setup>
+import { ref, onMounted, defineEmits } from 'vue'
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue'
 import { Bars3Icon, BellIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { authService } from '@/services/authService'
+import { useToast } from '@/composables/useToast'
 
-const user = {
-  name: 'Tom Cook',
-  email: 'tom@example.com',
-  imageUrl:
-    'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
-}
+const emit = defineEmits(['logout'])
+const { success, error } = useToast()
+
+const user = ref({
+  name: 'Loading...',
+  email: '',
+  username: '',
+  role: '',
+  imageUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+})
+
 const navigation = [
   { name: 'Dashboard', href: '#', current: true },
   { name: 'Team', href: '#', current: false },
@@ -115,9 +145,73 @@ const navigation = [
   { name: 'Calendar', href: '#', current: false },
   { name: 'Reports', href: '#', current: false },
 ]
+
 const userNavigation = [
-  { name: 'Your profile', href: '#' },
-  { name: 'Settings', href: '#' },
-  { name: 'Sign out', href: '#' },
+  { name: 'Your profile', href: '#', action: null },
+  { name: 'Settings', href: '#', action: null },
+  { name: 'Sign out', href: null, action: handleLogout },
 ]
+
+// Load user data on mount
+onMounted(async () => {
+  try {
+    // Try to get user from localStorage first
+    const storedUser = authService.getCurrentUser()
+    if (storedUser) {
+      user.value = {
+        name: storedUser.fullname || storedUser.username,
+        email: '', // Backend tidak return email, bisa diset default
+        username: storedUser.username,
+        role: storedUser.role,
+        imageUrl: user.value.imageUrl
+      }
+    }
+
+    // Fetch fresh user data from API
+    const response = await authService.getProfile()
+    if (response.status === 'success' && response.data) {
+      user.value = {
+        name: response.data.fullname || response.data.username,
+        email: '', // Backend tidak return email
+        username: response.data.username,
+        role: response.data.role,
+        imageUrl: user.value.imageUrl
+      }
+
+      // Update localStorage
+      localStorage.setItem('user', JSON.stringify(response.data))
+    }
+  } catch (err) {
+    console.error('Failed to load user profile:', err)
+    // Use stored data if API fails
+    const storedUser = authService.getCurrentUser()
+    if (storedUser) {
+      user.value = {
+        name: storedUser.fullname || storedUser.username,
+        email: '',
+        username: storedUser.username,
+        role: storedUser.role,
+        imageUrl: user.value.imageUrl
+      }
+    }
+  }
+})
+
+async function handleLogout() {
+  try {
+    // Call logout API
+    await authService.logout()
+
+    // Show success message
+    success('Logged out successfully')
+
+    // Emit logout event to parent
+    setTimeout(() => {
+      emit('logout')
+    }, 500)
+  } catch (err) {
+    console.error('Logout error:', err)
+    error('Logout failed. Please try again.')
+  }
+}
 </script>
