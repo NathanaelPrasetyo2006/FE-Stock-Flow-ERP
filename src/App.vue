@@ -1,6 +1,6 @@
 <script setup>
-import LoginPage from './components/LoginPage.vue';
-import DashboardLayouts from './components/DashboardLayouts.vue';
+import LoginPage from './views/LoginPage.vue';
+import DashboardLayouts from './layouts/DashboardLayouts.vue';
 import { ref } from 'vue';
 
 const isLoggedIn = ref(false);
